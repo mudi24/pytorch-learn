@@ -182,7 +182,7 @@ onMounted(() => {
 
 .chart-container {
   height: 400px;
-  width: 100%;
+  width: 600px;
   margin: 20px 0;
   min-width: 600px;
 }
