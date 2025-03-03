@@ -23,6 +23,13 @@
         <el-tab-pane label="特征可视化" name="visualization">
           <div class="section">
             <h3>特征图可视化</h3>
+            
+            <!-- 添加图片预览区域 -->
+            <div v-if="imagePreview" class="image-preview">
+              <h4>输入图片预览</h4>
+              <img :src="imagePreview" alt="预览图片" class="preview-image" />
+            </div>
+            
             <div class="feature-maps">
               <div v-for="(map, index) in featureMaps" :key="index" class="feature-map">
                 <h4>卷积层 {{ index + 1 }}</h4>
@@ -53,6 +60,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import * as echarts from 'echarts'
+import { ElMessage } from 'element-plus'
+import axios from 'axios'
 import 'highlight.js/styles/github.css'
 import hljs from 'highlight.js/lib/core'
 import python from 'highlight.js/lib/languages/python'
@@ -63,6 +72,7 @@ const activeTab = ref('structure')
 const networkResult = ref('')
 const featureMaps = ref([])
 const featureMapRefs = ref([])
+const imagePreview = ref('')  // 添加这行
 
 const visualConfig = ref({
   selectedImage: null
@@ -107,68 +117,53 @@ const runNetworkExample = () => {
 
 const handleImageChange = (file) => {
   visualConfig.value.selectedImage = file.raw
+  
+  if (file.raw) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      imagePreview.value = e.target.result
+    }
+    reader.readAsDataURL(file.raw)
+  }
 }
 
-const visualizeFeatures = () => {
-  // 模拟特征图数据
-  featureMaps.value = Array(2).fill(0).map(() => {
-    return Array(16).fill(0).map(() => Array(28).fill(0).map(() => Math.random()))
-  })
+const visualizeFeatures = async () => {
+  if (!visualConfig.value.selectedImage) {
+    ElMessage.warning('请先选择一张图片')
+    return
+  }
 
-  // 使用ECharts渲染特征图
-  featureMaps.value.forEach((maps, layerIndex) => {
-    const chartDom = featureMapRefs.value[layerIndex]
-    if (!chartDom) return
+  try {
+    // 将图片转换为 base64
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      try {
+        // 调用后端 API
+        const response = await axios.post('http://localhost:5000/api/cnn/process', {
+          image: e.target.result
+        })
 
-    const chart = echarts.init(chartDom)
-    chart.setOption({
-      tooltip: {
-        position: 'top'
-      },
-      grid: {
-        height: '50%',
-        top: '10%'
-      },
-      xAxis: {
-        type: 'category',
-        data: Array(28).fill(0).map((_, i) => i),
-        splitArea: {
-          show: true
+        if (response.data.status === 'success') {
+          // 更新特征图数据
+          featureMaps.value = response.data.feature_maps.map(mapData => {
+            return [mapData] // 将每层的特征图包装成数组
+          })
+
+          // 渲染特征图
+          renderFeatureMaps()
+        } else {
+          ElMessage.error('处理图片失败')
         }
-      },
-      yAxis: {
-        type: 'category',
-        data: Array(28).fill(0).map((_, i) => i),
-        splitArea: {
-          show: true
-        }
-      },
-      visualMap: {
-        min: 0,
-        max: 1,
-        calculable: true,
-        orient: 'horizontal',
-        left: 'center',
-        bottom: '15%'
-      },
-      series: [{
-        name: 'Feature Map',
-        type: 'heatmap',
-        data: maps[0].map((row, i) => 
-          row.map((val, j) => [i, j, val])
-        ).flat(),
-        label: {
-          show: false
-        },
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
-          }
-        }
-      }]
-    })
-  })
+      } catch (error) {
+        console.error('API调用失败:', error)
+        ElMessage.error('API调用失败')
+      }
+    }
+    reader.readAsDataURL(visualConfig.value.selectedImage)
+  } catch (error) {
+    console.error('处理图片失败:', error)
+    ElMessage.error('处理图片失败')
+  }
 }
 
 onMounted(() => {
@@ -231,5 +226,17 @@ onMounted(() => {
 
 .image-upload {
   margin-top: 10px;
+}
+
+.image-preview {
+  margin: 20px 0;
+  text-align: center;
+}
+
+.preview-image {
+  max-width: 300px;
+  max-height: 300px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
 }
 </style>

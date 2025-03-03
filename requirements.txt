@@ -8,3 +8,5 @@ scikit-learn>=0.24.2
 tqdm>=4.62.3
 pillow>=8.3.2
 jupyter>=1.0.0
+flask>=2.0.1
+flask-cors>=3.0.10

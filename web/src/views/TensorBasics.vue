@@ -151,7 +151,20 @@ const generateVisualization = () => {
       name: '张量值'
     })
   } else {
-    const data = Array.from({length: 25}, () => Math.random())
+    // 生成随机数据并保留 2-3 位小数
+    const data = Array.from({length: 25}, () => Number(Math.random().toFixed(2)))
+    // 为热力图添加必要的配置
+    option.xAxis = { type: 'category', data: Array.from({length: 5}, (_, i) => `${i}`) }
+    option.yAxis = { type: 'category', data: Array.from({length: 5}, (_, i) => `${i}`) }
+    // 添加 visualMap 组件配置
+    option.visualMap = {
+      min: 0,
+      max: 1,
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: '0%'
+    }
     option.series.push({
       type: 'heatmap',
       data: data.map((value, index) => [
@@ -159,7 +172,17 @@ const generateVisualization = () => {
         index % 5,
         value
       ]),
-      name: '张量值'
+      name: '张量值',
+      label: {
+        show: true,
+        formatter: (params) => params.data[2].toFixed(2) // 格式化标签显示，保留两位小数
+      },
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 0, 0, 0.5)'
+        }
+      }
     })
   }
 
