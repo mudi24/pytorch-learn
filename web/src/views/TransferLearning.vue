@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watchEffect } from 'vue'
 import * as echarts from 'echarts'
 import 'highlight.js/styles/github.css'
 import hljs from 'highlight.js/lib/core'
@@ -82,36 +82,78 @@ const trainingConfig = ref({
   learningRate: 0.001
 })
 
-const modelCode = `import torch
+const modelCode = ref('')
+
+const updateModelCode = () => {
+  const baseModel = modelConfig.value.baseModel
+  const task = modelConfig.value.task
+
+  // 根据选择的模型和任务生成相应的代码
+  const code = `import torch
 import torchvision.models as models
 import torch.nn as nn
 
 # 加载预训练模型
-model = models.resnet18(pretrained=True)
+model = models.${baseModel}(pretrained=True)
 
 # 冻结基础层参数
 for param in model.parameters():
     param.requires_grad = False
 
-# 修改最后的全连接层
+# 根据任务修改模型结构
+${task === 'classification' ? `# 修改最后的全连接层用于分类任务
 num_features = model.fc.in_features
-model.fc = nn.Linear(num_features, num_classes)
+model.fc = nn.Linear(num_features, num_classes)` : 
+task === 'detection' ? `# 修改模型用于目标检测任务
+from torchvision.models.detection import ${baseModel.includes('resnet') ? 'FasterRCNN' : 'RetinaNet'}
+
+backbone = model.features if hasattr(model, 'features') else nn.Sequential(*list(model.children())[:-2])
+model = ${baseModel.includes('resnet') ? 'FasterRCNN' : 'RetinaNet'}(backbone, num_classes=num_classes + 1)` :
+`# 修改模型用于语义分割任务
+from torchvision.models.segmentation import DeepLabV3
+
+backbone = model.features if hasattr(model, 'features') else nn.Sequential(*list(model.children())[:-2])
+model = DeepLabV3(backbone, num_classes=num_classes)`}
 
 print(model)`
 
+  modelCode.value = code
+}
+
+// 监听配置变化
+watchEffect(() => {
+  updateModelCode()
+})
+
 const runModelExample = () => {
-  modelResult.value = `ResNet(
-  (conv1): Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-  (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-  (relu): ReLU(inplace=True)
-  (maxpool): MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
-  (layer1): Sequential(...)
-  (layer2): Sequential(...)
-  (layer3): Sequential(...)
-  (layer4): Sequential(...)
-  (avgpool): AdaptiveAvgPool2d(output_size=(1, 1))
-  (fc): Linear(in_features=512, out_features=10, bias=True)
+  const baseModel = modelConfig.value.baseModel
+  const task = modelConfig.value.task
+
+  // 根据不同模型和任务生成相应的输出结果
+  if (task === 'classification') {
+    modelResult.value = `${baseModel.toUpperCase()}(
+  (features): Sequential(
+    (0): Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    ...
+  )
+  (fc): Linear(in_features=512, out_features=num_classes, bias=True)
 )`
+  } else if (task === 'detection') {
+    modelResult.value = `${baseModel.includes('resnet') ? 'FasterRCNN' : 'RetinaNet'}(
+  (backbone): ${baseModel.toUpperCase()}(...)
+  (rpn): RegionProposalNetwork(...)
+  (roi_heads): RoIHeads(...)
+)`
+  } else {
+    modelResult.value = `DeepLabV3(
+  (backbone): ${baseModel.toUpperCase()}(...)
+  (classifier): DeepLabHead(
+    (aspp): ASPP(...)
+    (classifier): Conv2d(256, num_classes, kernel_size=(1, 1), stride=(1, 1))
+  )
+)`
+  }
 }
 
 const startComparison = () => {

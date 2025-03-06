@@ -41,7 +41,7 @@
     </el-aside>
     <el-container>
       <el-header height="60px">
-        <h1>PyTorch 学习可视化</h1>
+        <h1>PyTorch 学习可视化(持续开发中)</h1>
       </el-header>
       <el-main>
         <router-view></router-view>
